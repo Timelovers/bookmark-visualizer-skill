@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>及时雨 · 书签库</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Courier+Prime:wght@400;700&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f0a;
+    --surface: #111409;
+    --panel: #161810;
+    --border: #2a2e1a;
+    --border-bright: #3d4420;
+    --green: #7aff4a;
+    --green-dim: #4a9930;
+    --green-faint: #1e3310;
+    --amber: #ffb830;
+    --amber-dim: #9c6e00;
+    --cyan: #4affec;
+    --cyan-dim: #1a7a72;
+    --text: #c8d4a0;
+    --text-dim: #6a7a50;
+    --text-faint: #3a4530;
+    --red: #ff4a4a;
+    --scanline: rgba(0,0,0,0.15);
+    --glow-green: 0 0 8px rgba(122,255,74,0.4), 0 0 20px rgba(122,255,74,0.1);
+    --glow-amber: 0 0 8px rgba(255,184,48,0.4), 0 0 20px rgba(255,184,48,0.1);
+    --glow-cyan: 0 0 8px rgba(74,255,236,0.4);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', 'Courier Prime', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* CRT scanlines overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      var(--scanline) 0px,
+      var(--scanline) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    pointer-events: none;
+    z-index: 1000;
+    animation: scanroll 8s linear infinite;
+  }
+
+  /* Noise texture */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  @keyframes scanroll {
+    0% { background-position: 0 0; }
+    100% { background-position: 0 100vh; }
+  }
+
+  @keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+
+  @keyframes flicker {
+    0%, 95%, 100% { opacity: 1; }
+    96% { opacity: 0.8; }
+    97% { opacity: 1; }
+    98% { opacity: 0.6; }
+    99% { opacity: 1; }
+  }
+
+  @keyframes glow-pulse {
+    0%, 100% { text-shadow: var(--glow-green); }
+    50% { text-shadow: 0 0 15px rgba(122,255,74,0.8), 0 0 30px rgba(122,255,74,0.3); }
+  }
+
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes fadeup {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* HEADER */
+  header {
+    border-bottom: 1px solid var(--border-bright);
+    padding: 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    animation: flicker 10s ease-in-out infinite;
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-family: 'VT323', monospace;
+    font-size: 2.2rem;
+    color: var(--green);
+    text-shadow: var(--glow-green);
+    letter-spacing: 2px;
+    animation: glow-pulse 3s ease-in-out infinite;
+  }
+
+  .logo span {
+    color: var(--amber);
+    text-shadow: var(--glow-amber);
+  }
+
+  .header-meta {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    text-align: right;
+    line-height: 1.8;
+  }
+
+  .header-meta .count {
+    color: var(--green);
+    font-size: 0.85rem;
+  }
+
+  .nav-bar {
+    display: flex;
+    gap: 0;
+    padding: 0 24px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav-bar::-webkit-scrollbar { display: none; }
+
+  .nav-tab {
+    padding: 8px 16px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: all 0.15s;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    user-select: none;
+  }
+
+  .nav-tab:hover {
+    color: var(--green);
+    border-bottom-color: var(--green-dim);
+  }
+
+  .nav-tab.active {
+    color: var(--green);
+    border-bottom-color: var(--green);
+    text-shadow: var(--glow-green);
+  }
+
+  /* MAIN LAYOUT */
+  .layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: calc(100vh - 100px);
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: sticky;
+    top: 100px;
+    height: calc(100vh - 100px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-bright) transparent;
+  }
+
+  .sidebar-section {
+    padding: 6px 16px;
+    font-size: 0.6rem;
+    color: var(--text-faint);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 16px;
+  }
+
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 16px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    transition: all 0.1s;
+    border-left: 2px solid transparent;
+    gap: 8px;
+  }
+
+  .sidebar-item:hover {
+    color: var(--text);
+    background: var(--green-faint);
+    border-left-color: var(--green-dim);
+  }
+
+  .sidebar-item.active {
+    color: var(--green);
+    background: rgba(122,255,74,0.05);
+    border-left-color: var(--green);
+    text-shadow: 0 0 6px rgba(122,255,74,0.3);
+  }
+
+  .sidebar-item .cat-icon {
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  .sidebar-item .cat-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sidebar-item .cat-count {
+    font-size: 0.65rem;
+    color: var(--text-faint);
+    background: var(--border);
+    padding: 1px 5px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .sidebar-item.active .cat-count {
+    background: var(--green-faint);
+    color: var(--green-dim);
+  }
+
+  /* MAIN CONTENT */
+  .main {
+    padding: 24px;
+    min-width: 0;
+  }
+
+  /* SEARCH */
+  .search-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    border: 1px solid var(--border-bright);
+    background: var(--panel);
+    padding: 10px 14px;
+    position: relative;
+  }
+
+  .search-bar::before {
+    content: '>';
+    color: var(--green);
+    font-size: 1rem;
+    text-shadow: var(--glow-green);
+    flex-shrink: 0;
+  }
+
+  .search-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.85rem;
+    flex: 1;
+    caret-color: var(--green);
+  }
+
+  .search-input::placeholder { color: var(--text-faint); }
+
+  .search-count {
+    font-size: 0.7rem;
+    color: var(--text-faint);
+    flex-shrink: 0;
+  }
+
+  /* CATEGORY HEADER */
+  .cat-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cat-header-icon { font-size: 1.2rem; }
+
+  .cat-header-title {
+    font-family: 'VT323', monospace;
+    font-size: 1.5rem;
+    color: var(--amber);
+    text-shadow: var(--glow-amber);
+    letter-spacing: 2px;
+  }
+
+  .cat-header-desc {
+    font-size: 0.7rem;
+    color: var(--text-faint);
+    margin-left: auto;
+  }
+
+  /* CARDS GRID */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+  }
+
+  .card {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    overflow: hidden;
+    animation: fadeup 0.3s ease both;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: transparent;
+    transition: all 0.15s;
+  }
+
+  .card:hover {
+    border-color: var(--green-dim);
+    background: var(--green-faint);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4), var(--glow-green);
+  }
+
+  .card:hover::before {
+    background: var(--green);
+    box-shadow: var(--glow-green);
+  }
+
+  .card-title {
+    font-size: 0.82rem;
+    color: var(--text);
+    line-height: 1.4;
+    font-weight: 400;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .card:hover .card-title { color: var(--green); }
+
+  .card-url {
+    font-size: 0.65rem;
+    color: var(--text-faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card-domain {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.62rem;
+    color: var(--cyan-dim);
+    background: rgba(74,255,236,0.05);
+    border: 1px solid rgba(74,255,236,0.1);
+    padding: 1px 6px;
+    align-self: flex-start;
+  }
+
+  .card:hover .card-domain {
+    color: var(--cyan);
+    border-color: rgba(74,255,236,0.3);
+    text-shadow: var(--glow-cyan);
+  }
+
+  /* ALL VIEW */
+  .all-section {
+    margin-bottom: 32px;
+  }
+
+  .all-section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .all-section-title .icon { font-size: 1rem; }
+  .all-section-title .name {
+    font-size: 0.85rem;
+    color: var(--amber);
+    letter-spacing: 1px;
+  }
+  .all-section-title .num {
+    font-size: 0.7rem;
+    color: var(--text-faint);
+    margin-left: auto;
+  }
+
+  /* STATS BAR */
+  .stats-bar {
+    display: flex;
+    gap: 24px;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+  }
+
+  .stat { display: flex; gap: 8px; align-items: center; }
+  .stat-val { color: var(--green); text-shadow: var(--glow-green); font-size: 0.85rem; }
+
+  /* EMPTY STATE */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-faint);
+    font-size: 0.8rem;
+  }
+
+  .empty .big { font-family: 'VT323', monospace; font-size: 3rem; color: var(--border-bright); display: block; margin-bottom: 12px; }
+
+  /* CURSOR BLINK */
+  .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 14px;
+    background: var(--green);
+    animation: blink 1s step-end infinite;
+    vertical-align: middle;
+    margin-left: 2px;
+    box-shadow: var(--glow-green);
+  }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 0; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--green-dim); }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 12px 24px;
+    font-size: 0.65rem;
+    color: var(--text-faint);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  footer .green { color: var(--green); }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .cards-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 480px) {
+    .cards-grid { grid-template-columns: 1fr; }
+  }
+
+  /* stagger animation for cards */
+  .card:nth-child(1) { animation-delay: 0.02s; }
+  .card:nth-child(2) { animation-delay: 0.04s; }
+  .card:nth-child(3) { animation-delay: 0.06s; }
+  .card:nth-child(4) { animation-delay: 0.08s; }
+  .card:nth-child(5) { animation-delay: 0.10s; }
+  .card:nth-child(6) { animation-delay: 0.12s; }
+  .card:nth-child(7) { animation-delay: 0.14s; }
+  .card:nth-child(8) { animation-delay: 0.16s; }
+  .card:nth-child(9) { animation-delay: 0.18s; }
+  .card:nth-child(10) { animation-delay: 0.20s; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div class="logo">及时雨<span>.db</span><span class="cursor"></span></div>
+    <div class="header-meta">
+      <div>书签库 · BOOKMARK ARCHIVE</div>
+      <div>总计 <span class="count" id="totalCount">313</span> 条目 · <span class="count" id="catCount">12</span> 分类</div>
+    </div>
+  </div>
+  <div class="stats-bar">
+    <div class="stat">ENTRIES <span class="stat-val" id="visibleCount">313</span></div>
+    <div class="stat">CATEGORY <span class="stat-val" id="activeCat">ALL</span></div>
+    <div class="stat">FILTER <span class="stat-val" id="filterStatus">OFF</span></div>
+    <div class="stat" style="margin-left:auto; color: var(--text-faint); font-size:0.65rem;">SYS_READY ████████ 100%</div>
+  </div>
+  <div class="nav-bar" id="navBar"></div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main" id="main">
+    <div class="search-bar">
+      <input class="search-input" id="searchInput" type="text" placeholder="搜索书签标题或域名..." autocomplete="off" spellcheck="false">
+      <span class="search-count" id="searchCount"></span>
+    </div>
+    <div id="content"></div>
+  </main>
+</div>
+
+<footer>
+  <span>及时雨书签库 · JISHIYU BOOKMARK ARCHIVE · <span class="green">v1.0</span></span>
+  <span>TERMINAL_MODE · <span class="green">ONLINE</span></span>
+</footer>
+
+<script>
+const DATA = {
+  categories: [
+    {
+      id: 'ai-chat',
+      icon: '🤖',
+      name: 'AI 对话助手',
+      desc: 'Chat & Conversational AI',
+      items: [
+        { title: 'Claude', url: 'https://claude.ai/chat/1c6bf6c0-8747-4ec0-afde-ba2532f61cc6' },
+        { title: 'ChatGPT / Grok', url: 'https://grok.com/' },
+        { title: 'Grok Chat', url: 'https://grok.com/chat/4eeca819-5af7-4ed2-92fe-06a820dbaea0' },
+        { title: 'Gemini', url: 'https://gemini.google.com/app' },
+        { title: 'DeepSeek Chat', url: 'https://chat.deepseek.com/' },
+        { title: 'Kimi', url: 'https://www.kimi.com/' },
+        { title: '豆包', url: 'https://www.doubao.com/chat/' },
+        { title: 'Perplexity', url: 'https://www.perplexity.ai/' },
+        { title: 'NotebookLM', url: 'https://notebooklm.google.com/' },
+        { title: 'Qwen', url: 'https://chat.qwen.ai/' },
+        { title: 'Z.ai Chat (GLM-4)', url: 'https://chat.z.ai/' },
+        { title: 'Microsoft Copilot', url: 'https://copilot.microsoft.com/' },
+        { title: 'Google AI Studio', url: 'https://aistudio.google.com/app/prompts/new_chat' },
+        { title: 'iGPT (ZTE内部)', url: 'https://igpt.dt.zte.com.cn/zte-icenter-igpt-web/#/home/chat' },
+        { title: 'NebulaCoder 6', url: 'http://nebulacoder.dev.zte.com.cn/new-session/ai-intelligent-search/154d1463-4f9f-4b04-9414-e6d5ed02be9b' },
+        { title: 'GitHub Copilot', url: 'https://github.com/copilot' },
+      ]
+    },
+    {
+      id: 'ai-code',
+      icon: '💻',
+      name: 'AI 编程工具',
+      desc: 'Coding Agents & Dev Tools',
+      items: [
+        { title: 'Claude Code (GitHub)', url: 'https://github.com/anthropics/claude-code' },
+        { title: 'Cursor 快速开始', url: 'https://docs.cursor.com/zh/get-started/quickstart' },
+        { title: 'Cline - AI Coding', url: 'https://cline.bot/' },
+        { title: 'Kilo Code', url: 'https://kilo.ai/' },
+        { title: 'Kilo Code Docs', url: 'https://kilo.ai/docs' },
+        { title: 'OpenCode', url: 'https://opencode.ai/' },
+        { title: 'Lovable', url: 'https://lovable.dev/' },
+        { title: 'Flowith AI', url: 'https://flowith.net/blank' },
+        { title: 'flowith 2.0', url: 'https://flo.ing/blank' },
+        { title: 'Repomix 代码打包', url: 'https://repomix.com/zh-cn/' },
+        { title: 'CodeFlow (内网)', url: 'https://10.57.82.98:34567/' },
+        { title: 'CodeShooting', url: 'https://codeshooting.zte.com.cn/' },
+        { title: 'Gemini CLI', url: 'https://google-gemini.github.io/gemini-cli/' },
+        { title: 'oh-my-openagent', url: 'https://github.com/code-yeongyu/oh-my-openagent' },
+        { title: 'everything-claude-code', url: 'https://github.com/affaan-m/everything-claude-code' },
+        { title: 'claude-code-router', url: 'https://github.com/musistudio/claude-code-router' },
+        { title: 'Aider 依赖版本', url: 'https://aider.chat/docs/troubleshooting/imports.html' },
+      ]
+    },
+    {
+      id: 'ai-agent',
+      icon: '🕸️',
+      name: 'AI Agent & 工作流',
+      desc: 'Agents, Workflows & Automation',
+      items: [
+        { title: 'Manus', url: 'https://manus.im/' },
+        { title: 'n8n Workflows', url: 'https://bitcloud2023.app.n8n.cloud/' },
+        { title: 'n8n AI Tutorial', url: 'https://docs.n8n.io/advanced-ai/intro-tutorial/' },
+        { title: 'n8n 部署方式指南', url: 'https://n8n.akashio.com/article/n8n-deployment-method' },
+        { title: 'AutoGen Studio', url: 'https://microsoft.github.io/autogen/stable//user-guide/autogenstudio-user-guide/index.html' },
+        { title: 'AutoGen 文档(中文)', url: 'https://www.aidoczh.com/autogen/stable/' },
+        { title: 'Awesome Agentic Patterns', url: 'https://agentic-patterns.com/' },
+        { title: 'AIOS Foundation', url: 'https://www.aios.foundation/' },
+        { title: 'AIOS Docs', url: 'https://docs.aios.foundation/aios-docs' },
+        { title: 'OpenClaw', url: 'https://github.com/openclaw/openclaw' },
+        { title: 'OpenClaw 桌面版', url: 'https://openclawcn.net/' },
+        { title: 'AutoClaw', url: 'https://autoglm.zhipuai.cn/autoclaw/' },
+        { title: 'EasyClaw', url: 'https://easyclaw.cn/' },
+        { title: 'WorkBuddy AI办公', url: 'https://www.codebuddy.cn/work/' },
+        { title: 'LobsterAI (有道)', url: 'https://lobsterai.youdao.com/#/index' },
+        { title: 'ClawHub', url: 'https://clawhub.ai/' },
+        { title: 'Kilo Code CLI', url: 'https://kilo.ai/docs/code-with-ai/platforms/cli' },
+        { title: 'AGIAgent (开源 Manus)', url: 'https://github.com/agi-hub/AGIAgent' },
+        { title: 'Manus 12款替代开源项目', url: 'https://www.meoai.net/best-ai-agent-open-source.html' },
+      ]
+    },
+    {
+      id: 'ai-skills',
+      icon: '🧠',
+      name: 'Agent Skills',
+      desc: 'Skills, MCP & Prompts',
+      items: [
+        { title: 'Anthropic Skills 官方仓库', url: 'https://github.com/anthropics/skills' },
+        { title: 'Introducing Agent Skills', url: 'https://claude.com/blog/skills' },
+        { title: 'Agent Skills Directory', url: 'https://skills.sh/' },
+        { title: 'SkillsMP 市场', url: 'https://skillsmp.com/zh' },
+        { title: 'Overview - Agent Skills', url: 'https://agentskills.io/home' },
+        { title: 'awesome-claude-skills', url: 'https://github.com/ComposioHQ/awesome-claude-skills' },
+        { title: 'kilo-marketplace/skills', url: 'https://github.com/Kilo-Org/kilo-marketplace/tree/main/skills' },
+        { title: 'Claude superpowers', url: 'https://github.com/obra/superpowers' },
+        { title: 'MCP 工具文档', url: 'https://mcp-docs.cn/docs/concepts/tools' },
+        { title: 'MCP 公共接口开发', url: 'https://i.zte.com.cn/#/shared/d6163fe4c6f44d98bc23548a00502ff5' },
+        { title: 'Snack Prompt', url: 'https://snackprompt.com/' },
+        { title: 'PromptVault 个人提示词库', url: 'https://timelovers.github.io/promptvault/' },
+        { title: 'awesome-prompt', url: 'https://github.com/NeekChaw/awesome-prompt' },
+        { title: 'Anthropic 提示词教程', url: 'https://github.com/anthropics/prompt-eng-interactive-tutorial' },
+        { title: 'Nano Banana Prompts', url: 'https://opennana.com/awesome-prompt-gallery/' },
+        { title: 'AI Skills 指令大全', url: 'https://ai.codefather.cn/skills' },
+        { title: 'Agent Skills DeepLearning', url: 'https://www.deeplearning.ai/short-courses/agent-skills-with-anthropic/' },
+        { title: 'kepano/obsidian-skills', url: 'https://github.com/kepano/obsidian-skills' },
+        { title: 'Notion Skills for Claude', url: 'https://www.notion.so/notiondevs/Notion-Skills-for-Claude-28da4445d27180c7af1df7d8615723d0' },
+        { title: 'Skill Seekers', url: 'https://github.com/yusufkaraaslan/Skill_Seekers' },
+        { title: 'planning-with-files', url: 'https://github.com/OthmanAdi/planning-with-files' },
+        { title: 'Cursor Skills Docs', url: 'https://cursor.com/cn/docs/context/skills' },
+        { title: 'mcp公共接口开发', url: 'https://i.zte.com.cn/#/shared/d6163fe4c6f44d98bc23548a00502ff5' },
+        { title: 'mcpmarket 每日技能', url: 'https://mcpmarket.com/zh/daily/skills' },
+        { title: '提示精灵', url: 'https://www.promptgenius.site/' },
+        { title: '提示词优化器', url: 'https://prompt.heyai.studio/' },
+      ]
+    },
+    {
+      id: 'ai-platform',
+      icon: '⚡',
+      name: 'AI 平台 & API',
+      desc: 'Platforms, APIs & Infrastructure',
+      items: [
+        { title: 'DeepSeek 开放平台', url: 'https://platform.deepseek.com/api_keys' },
+        { title: 'HuggingFace', url: 'https://huggingface.co/' },
+        { title: '智谱AI开放平台', url: 'https://www.bigmodel.cn/' },
+        { title: 'OpenRouter 可观测性', url: 'https://openrouter.ai/settings/observability' },
+        { title: 'Google AI Studio Apps', url: 'https://aistudio.google.com/apps' },
+        { title: 'ElevenLabs TTS', url: 'https://elevenlabs.io/' },
+        { title: 'Stable Diffusion 在线', url: 'https://stablediffusionweb.com/app/image-generator' },
+        { title: 'Unsloth 微调框架', url: 'https://github.com/unslothai/unsloth' },
+        { title: 'GLM-4.7-Flash', url: 'https://huggingface.co/zai-org/GLM-4.7-Flash' },
+        { title: 'ZTE iGPT Apps', url: 'https://llm.zte.com.cn/zte-igpt-ellm-apps/#/mapDetail' },
+        { title: 'AI应用商店', url: 'https://ai-bot.cn/ai-app-store/' },
+        { title: 'coze.cn 扣子编程', url: 'https://code.coze.cn/home' },
+        { title: 'Karpathy Blog', url: 'https://karpathy.bearblog.dev/' },
+        { title: 'TechInsights', url: 'https://www.techinsights.com/' },
+      ]
+    },
+    {
+      id: 'llm-learn',
+      icon: '📚',
+      name: 'LLM 学习资源',
+      desc: 'Papers, Courses & Learning',
+      items: [
+        { title: 'LLM Agents - Lil\'Log', url: 'https://lilianweng.github.io/posts/2023-06-23-agent/' },
+        { title: 'Lil\'Log 主页', url: 'https://lilianweng.github.io/' },
+        { title: 'MiniMind - 从0训练GPT', url: 'https://github.com/jingyaogong/minimind' },
+        { title: 'Tiny-Universe 大模型白盒', url: 'https://github.com/datawhalechina/tiny-universe' },
+        { title: 'Happy-LLM Transformer架构', url: 'https://github.com/datawhalechina/happy-llm' },
+        { title: 'RLHF: From Zero to ChatGPT', url: 'https://www.youtube.com/watch?v=2MBJOuVq380' },
+        { title: 'LLaMA Factory FineTune', url: 'https://colab.research.google.com/drive/1eRTPn37ltBbYsISy9Aw2NuI2Aq5CQrD9' },
+        { title: 'GRPO 推理模型训练', url: 'https://unsloth.ai/docs/get-started/reinforcement-learning-rl-guide' },
+        { title: 'wdndev/llm_interview_note', url: 'https://github.com/wdndev/llm_interview_note' },
+        { title: 'task03 LLM与微调入门', url: 'https://datawhaler.feishu.cn/wiki/Drttwt1bxiFNW8k8kpFctdQDn2c' },
+        { title: 'AIOS论文', url: 'https://arxiv.org/html/2403.16971v5#S3' },
+        { title: 'LLMs Get Lost In Multi-Turn', url: 'https://arxiv.org/abs/2505.06120' },
+        { title: 'awesome-llm-books', url: 'https://github.com/Jason2Brownlee/awesome-llm-books' },
+        { title: 'Awesome Open Source AI', url: 'https://github.com/thebigbone/opensourceAI' },
+        { title: 'Datawhale GitHub', url: 'https://github.com/datawhalechina' },
+        { title: 'DeepTutor', url: 'https://deeptutor.knowhiz.us/' },
+        { title: 'HKUDS/DeepTutor', url: 'https://github.com/HKUDS/DeepTutor' },
+        { title: 'Shunyu Yao 个人页', url: 'https://ysymyth.github.io/' },
+        { title: 'Sam Altman Blog', url: 'https://blog.samaltman.com/' },
+        { title: 'Zara\'s AI Library', url: 'https://zara.faces.site/ai' },
+        { title: '自主Agent/上下文工程索引', url: 'https://github.com/ninehills/blog/issues/150' },
+      ]
+    },
+    {
+      id: 'algo-ds',
+      icon: '🧮',
+      name: '算法 & 数据结构',
+      desc: 'Algorithms, DS & LeetCode',
+      items: [
+        { title: 'LeetCode Hot 100 题解', url: 'https://leet100sols-xrzjyheh.manus.space/' },
+        { title: 'NeetCode Practice', url: 'https://neetcode.io/practice/practice/coreSkills' },
+        { title: 'Grind 75', url: 'https://www.techinterviewhandbook.org/grind75/' },
+        { title: 'Hello 算法', url: 'https://github.com/krahets/hello-algo' },
+        { title: 'labuladong 算法框架', url: 'https://labuladong.online/zh/algo/essential-technique/algorithm-summary/' },
+        { title: 'LRU算法 - labuladong', url: 'https://github.com/labuladong/fucking-algorithm/blob/master/%E9%AB%98%E9%A2%91%E9%9D%A2%E8%AF%95%E7%B3%BB%E5%88%97/LRU%E7%AE%97%E6%B3%95.md' },
+        { title: 'RAG GitHub Topics', url: 'https://github.com/topics/rag' },
+        { title: '面试狗', url: 'https://interview.dog/' },
+      ]
+    },
+    {
+      id: 'tools',
+      icon: '🛠️',
+      name: '效率工具',
+      desc: 'Productivity & Dev Tools',
+      items: [
+        { title: 'Excalidraw 白板', url: 'https://excalidraw.com/' },
+        { title: 'DrawMagic AI图表', url: 'https://drawmagic.pro/' },
+        { title: 'boardmix', url: 'https://boardmix.cn/app/home' },
+        { title: 'YouMind', url: 'https://youmind.com/boards/019ae31c-5ff9-7f51-aa79-564f95abab13' },
+        { title: 'Simplenote', url: 'https://app.simplenote.com/' },
+        { title: 'TLDW 视频摘要', url: 'https://tldw.us/' },
+        { title: 'Zread AI论文阅读', url: 'https://zread.ai/' },
+        { title: 'Vibero 文献阅读', url: 'https://vibero.dev/' },
+        { title: 'Podwise 播客笔记', url: 'https://podwise.ai/' },
+        { title: 'JSON在线解析', url: 'https://www.sojson.com/' },
+        { title: 'ChatDB 数据工具', url: 'https://www.chatdb.ai/' },
+        { title: 'defuddle 网页转Markdown', url: 'https://github.com/kepano/defuddle' },
+        { title: 'Pomelli by Google Labs', url: 'https://labs.google.com/pomelli' },
+        { title: 'Repomix', url: 'https://repomix.com/zh-cn/' },
+        { title: 'Turbo AI Podcast', url: 'https://www.turbo.ai/notes/3765e7b3-ee7e-463a-bbf7-39c4df85995a/podcast' },
+        { title: 'bestblogs.dev', url: 'https://www.bestblogs.dev/' },
+        { title: 'Obsidian Steph Ango', url: 'https://stephango.com/about' },
+        { title: '中文播客榜', url: 'https://xyzrank.com/#/' },
+        { title: 'ElevenLabs TTS', url: 'https://elevenlabs.io/app/speech-synthesis/text-to-speech' },
+        { title: 'TTSMaker', url: 'https://ttsmaker.com/' },
+        { title: 'Overleaf LaTeX模板', url: 'https://cn.overleaf.com/latex/templates' },
+        { title: 'AnyGen 视频转文章', url: 'https://www.anygen.io/' },
+      ]
+    },
+    {
+      id: 'design',
+      icon: '🎨',
+      name: '设计 & 创作',
+      desc: 'Design, UI/UX & Creative',
+      items: [
+        { title: 'Figma', url: 'https://www.figma.com/' },
+        { title: 'Dribbble', url: 'https://dribbble.com/' },
+        { title: 'Microsoft Designer', url: 'https://designer.microsoft.com/' },
+        { title: 'Aura - 设计构建', url: 'https://www.aura.build/' },
+        { title: 'Saaspo 落地页案例', url: 'https://saaspo.com/' },
+        { title: 'PixMiller KV生成', url: 'https://kv.pixmiller.com/' },
+        { title: 'Studio Ghibli Search', url: 'https://ghibli-search.anini.workers.dev/' },
+        { title: 'PromptHero MJ', url: 'https://prompthero.com/prompt/4a8ddae99fc' },
+        { title: '小红书封面生成器', url: 'https://xhscover.vivi.wiki/' },
+        { title: '小红书长文转图片', url: 'https://rednote.limboy.me/' },
+        { title: 'HisMax/RedInk', url: 'https://github.com/HisMax/RedInk' },
+        { title: 'Gemini 去水印工具', url: 'https://github.com/journey-ad/gemini-watermark-remover' },
+        { title: 'Vibe Coding 风格切换', url: 'https://www.vibeatlas.shop/' },
+        { title: 'awesome-vibe-coding', url: 'https://github.com/filipecalegario/awesome-vibe-coding' },
+      ]
+    },
+    {
+      id: 'learning',
+      icon: '🎯',
+      name: '个人成长',
+      desc: 'Personal Growth & Skills',
+      items: [
+        { title: '双重N-Back 记忆训练', url: 'https://www.freefocusgames.com/zh/games/dual-n-back' },
+        { title: 'Dual N-Back io', url: 'https://dual-n-back.io/' },
+        { title: 'Good Writing - Paul Graham', url: 'https://paulgraham.com/goodwriting.html' },
+        { title: 'Oliver Burkeman Posts', url: 'https://www.oliverburkeman.com/posts' },
+        { title: 'Typing Common English Words', url: 'https://www.typing.com/student/lesson/328/common-english-words' },
+        { title: 'How to Speak Faster', url: 'https://www.youtube.com/watch?v=cAn2Wq9p_XE' },
+        { title: 'RLHF视频 YouTube', url: 'https://www.youtube.com/watch?v=2MBJOuVq380' },
+        { title: '复盘+：把经验转化为能力', url: 'https://zh.z-library.sk/book/11773245/' },
+        { title: 'YC Partner Simulator', url: 'https://ycarena.com/games/partnersim' },
+        { title: 'Learn Your Way (Google)', url: 'https://learnyourway.withgoogle.com/' },
+        { title: 'Zara\'s Newsletter', url: 'https://zarazhang.substack.com/' },
+        { title: 'fmhy.net 免费资源', url: 'https://fmhy.net/' },
+        { title: 'Reddit', url: 'https://www.reddit.com/' },
+        { title: 'iEval 极简评测', url: 'https://ieval.zx.zte.com.cn/#/minimalism' },
+      ]
+    },
+    {
+      id: 'travel-finance',
+      icon: '✈️',
+      name: '旅行 & 量化',
+      desc: 'Travel, Finance & Misc',
+      items: [
+        { title: 'Ctrip 旅行 Agent (LangGraph)', url: 'https://github.com/Haohao-end/Ctrip-Style-AI-Travel-Assistant' },
+        { title: 'LangGraph Travel Planner', url: 'https://github.com/HarimxChoi/langgraph-travel-agent' },
+        { title: 'Multi-Agent Travel Workshop', url: 'https://github.com/AzureCosmosDB/travel-multi-agent-workshop' },
+        { title: 'awesome-quant', url: 'https://github.com/wilsonfreitas/awesome-quant' },
+        { title: 'Microsoft Qlib 量化', url: 'https://github.com/microsoft/qlib' },
+        { title: 'Tushare 数据', url: 'https://tushare.pro/user/center' },
+        { title: 'Accio 阿里巴巴 B2B', url: 'https://www.accio.com/' },
+        { title: 'Advent of Agents 2025', url: 'https://adventofagents.com/' },
+        { title: 'In Common With 照明', url: 'https://www.incommonwith.com/collections/all-lighting' },
+        { title: '乐辰数卡', url: 'https://vip.lcsup.com/index' },
+        { title: 'YouTube', url: 'https://youtube.com/' },
+        { title: '甲子光年 AI报告', url: 'https://www.jazzyear.com/study_list.html' },
+        { title: '亿欧智库研究报告', url: 'https://www.iyiou.com/research' },
+        { title: 'GOSIM Hangzhou 2025', url: 'https://hangzhou2025.gosim.org/tickets/' },
+      ]
+    },
+    {
+      id: 'career',
+      icon: '🎓',
+      name: '简历 & 职业',
+      desc: 'Resume, Career & Portfolio',
+      items: [
+        { title: '魔方简历 AI', url: 'https://magicv.art/zh' },
+        { title: '木及简历', url: 'https://www.mujicv.com/login/' },
+        { title: 'cvora.net AI简历', url: 'https://www.cvora.net/dashboard?demo=true' },
+        { title: 'cv.ftqq.com', url: 'https://cv.ftqq.com/' },
+        { title: 'chatgpt resume', url: 'https://app.chatgptresume.com/dashboard/resumes' },
+        { title: 'developer-portfolios', url: 'https://github.com/emmabostian/developer-portfolios' },
+        { title: 'Abdullah James Portfolio', url: 'https://portfolio-website-abdullah-james.vercel.app/' },
+        { title: 'Bruce Wang Resume', url: 'https://brucewang15.vercel.app/resume' },
+        { title: 'Samuel Zhang Projects', url: 'https://samuelzhang.ca/projects' },
+        { title: 'GitHubDaily 开源项目', url: 'https://github.com/GitHubDaily/GitHubDaily' },
+        { title: 'NeetCode 算法练习', url: 'https://neetcode.io/' },
+        { title: 'Code Like a Girl', url: 'https://remoteintech.company/companies/code-like-a-girl/' },
+        { title: '前端面试10场景题', url: 'https://www.codefather.cn/post/2038518843558633474' },
+      ]
+    },
+  ]
+};
+
+// Flatten all items
+const allItems = DATA.categories.flatMap(cat =>
+  cat.items.map(item => ({ ...item, catId: cat.id, catName: cat.name, catIcon: cat.icon }))
+);
+
+let currentCat = 'all';
+let searchQuery = '';
+
+function getDomain(url) {
+  try {
+    const u = new URL(url);
+    return u.hostname.replace('www.', '');
+  } catch { return url.slice(0, 20); }
+}
+
+function renderSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  let html = '<div class="sidebar-section">// CATEGORIES</div>';
+
+  html += `<div class="sidebar-item ${currentCat === 'all' ? 'active' : ''}" onclick="selectCat('all')">
+    <span class="cat-icon">📡</span>
+    <span class="cat-name">ALL ENTRIES</span>
+    <span class="cat-count">${allItems.length}</span>
+  </div>`;
+
+  DATA.categories.forEach(cat => {
+    const active = currentCat === cat.id;
+    html += `<div class="sidebar-item ${active ? 'active' : ''}" onclick="selectCat('${cat.id}')">
+      <span class="cat-icon">${cat.icon}</span>
+      <span class="cat-name">${cat.name}</span>
+      <span class="cat-count">${cat.items.length}</span>
+    </div>`;
+  });
+
+  sidebar.innerHTML = html;
+}
+
+function renderNavBar() {
+  const nav = document.getElementById('navBar');
+  let html = `<div class="nav-tab ${currentCat === 'all' ? 'active' : ''}" onclick="selectCat('all')">ALL</div>`;
+  DATA.categories.forEach(cat => {
+    html += `<div class="nav-tab ${currentCat === cat.id ? 'active' : ''}" onclick="selectCat('${cat.id}')">${cat.icon} ${cat.name}</div>`;
+  });
+  nav.innerHTML = html;
+}
+
+function makeCard(item, idx) {
+  const domain = getDomain(item.url);
+  return `<a class="card" href="${item.url}" target="_blank" rel="noopener" title="${item.title}" style="animation-delay:${Math.min(idx,15)*0.03}s">
+    <div class="card-title">${item.title}</div>
+    <div class="card-domain">${domain}</div>
+  </a>`;
+}
+
+function renderContent() {
+  const content = document.getElementById('content');
+  const q = searchQuery.toLowerCase();
+
+  let items = currentCat === 'all' ? allItems : allItems.filter(i => i.catId === currentCat);
+  if (q) items = items.filter(i => i.title.toLowerCase().includes(q) || getDomain(i.url).includes(q));
+
+  document.getElementById('visibleCount').textContent = items.length;
+  document.getElementById('filterStatus').textContent = q ? 'ON' : 'OFF';
+  document.getElementById('searchCount').textContent = q ? `${items.length} 结果` : '';
+
+  if (items.length === 0) {
+    content.innerHTML = `<div class="empty"><span class="big">404</span>没有找到匹配的书签<br><br>尝试其他关键词</div>`;
+    return;
+  }
+
+  if (currentCat === 'all' && !q) {
+    // Grouped view
+    let html = '';
+    DATA.categories.forEach(cat => {
+      const catItems = items.filter(i => i.catId === cat.id);
+      if (catItems.length === 0) return;
+      html += `<div class="all-section">
+        <div class="all-section-title">
+          <span class="icon">${cat.icon}</span>
+          <span class="name">${cat.name}</span>
+          <span class="num">${catItems.length} entries</span>
+        </div>
+        <div class="cards-grid">
+          ${catItems.map((item, i) => makeCard(item, i)).join('')}
+        </div>
+      </div>`;
+    });
+    content.innerHTML = html;
+  } else {
+    const cat = currentCat !== 'all' ? DATA.categories.find(c => c.id === currentCat) : null;
+    let html = '';
+    if (cat) {
+      html += `<div class="cat-header">
+        <span class="cat-header-icon">${cat.icon}</span>
+        <span class="cat-header-title">${cat.name}</span>
+        <span class="cat-header-desc">${cat.desc} · ${items.length} entries</span>
+      </div>`;
+    } else if (q) {
+      html += `<div class="cat-header">
+        <span class="cat-header-icon">🔍</span>
+        <span class="cat-header-title">SEARCH: "${searchQuery}"</span>
+        <span class="cat-header-desc">${items.length} results</span>
+      </div>`;
+    }
+    html += `<div class="cards-grid">${items.map((item, i) => makeCard(item, i)).join('')}</div>`;
+    content.innerHTML = html;
+  }
+}
+
+function selectCat(id) {
+  currentCat = id;
+  document.getElementById('activeCat').textContent = id === 'all' ? 'ALL' : DATA.categories.find(c=>c.id===id)?.name || id;
+  renderSidebar();
+  renderNavBar();
+  renderContent();
+  window.scrollTo(0, 0);
+}
+
+document.getElementById('searchInput').addEventListener('input', function() {
+  searchQuery = this.value.trim();
+  if (searchQuery) currentCat = 'all';
+  renderSidebar();
+  renderNavBar();
+  renderContent();
+});
+
+// Init
+document.getElementById('totalCount').textContent = allItems.length;
+document.getElementById('catCount').textContent = DATA.categories.length;
+renderSidebar();
+renderNavBar();
+renderContent();
+</script>
+</body>
+</html>

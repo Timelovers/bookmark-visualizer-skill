@@ -1,0 +1,5 @@
+# Chrome bookmark exports (may contain personal data)
+bookmarks_*.html
+sample-bookmarks.html
+*.bak
+.DS_Store
