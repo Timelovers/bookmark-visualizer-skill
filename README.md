@@ -10,10 +10,6 @@
 
 <br />
 
-<img src="./assets/google-ai-studio-banner.png" alt="Google AI Studio — The fastest path from prompt to production with Gemini" width="680" />
-
-<sub><a href="https://aistudio.google.com/">Google AI Studio</a> · ai.studio</sub>
-
 </div>
 
 ---
