@@ -8,8 +8,6 @@
 ![书签支持](https://img.shields.io/badge/支持-Chrome%20书签-4affec?style=flat-square&labelColor=0d0f0a)
 ![单文件输出](https://img.shields.io/badge/输出-单HTML文件-ffb830?style=flat-square&labelColor=0d0f0a)
 
-<br />
-
 </div>
 
 ---
